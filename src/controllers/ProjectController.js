@@ -4,15 +4,32 @@ module.exports = {
     // List
     async index(req, res, next) {
         try{
-            const results = await db('projects')
-            .join('users', 'users.id', '=', 'projects.user_id')
-            .select([
-                'projects.id',
-                'projects.user_id',
-                'projects.title',
-                'users.username',
-                'projects.*',
-            ])
+            const { user_id, page = 1} = req.query; // selecionar projeto de cada usuário pelo id
+
+            const query = db('projects')
+            .limit(5) // limitando mostar até 5 valores na primeira pagina
+            .offset((page -1) * 5) // descolameno para as proximas informações
+
+             // total de paginas
+             const countObject = db('projects').count()
+
+            if(user_id){ // selecionando projetos que o usuário cm esse id esteja envolvido 
+                query
+                .where({user_id})
+                .join('users', 'users.id', '=', 'projects.user_id')
+                .select(
+                    'projects.*',
+                    'users.username',
+                ) 
+                
+                countObject
+                .where({user_id})
+            }
+
+            const [ count ] = await countObject
+            res.header('T-total-count', count['count']) // salvando o total de paginas no header
+
+            const results = await query
 
             return res.json(results)
         }
@@ -39,36 +56,18 @@ module.exports = {
     },
 
     // Update 
-    async update(req, res, next){
-        try{
-            const { title } = req.body 
+    async update(req, res, next) {
+        try {
+            const { title, user_id } = req.body
             const { id } = req.params
-
+            
             await db('projects')
-            .update({title})
-            .where({id})
+                .update({ title, user_id })
+                .where({ id })
 
-            return res.status(201).send()
+            return res.send()
 
-        }catch(error){
-            next(error)
-        }
-    },
-
-    // Delete 
-    async delete(req, res, next){
-        try{
-            const {id} = req.params
-
-            let del = await db('projects').where({id}).del()
-
-            if(!del){
-                return res.status(404).json({error: 'Nao encontrado'})
-            }
-
-            return res.json({inform: 'Deletado'}).send()
-
-        }catch(error){
+        } catch (error) {
             next(error)
         }
     }
